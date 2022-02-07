@@ -1,0 +1,155 @@
+---
+title: "Dimension Reduction for Real Estate "
+output: html_document
+---
+```{r, echo=FALSE, message=FALSE}
+library(ggplot2)
+library(tidyr)
+library(factoextra)
+library(flexclust)
+library(fpc)
+library(clustertend)
+library(cluster)
+library(ClusterR)
+library(tidyverse)
+library(dendextend)
+library(rstudioapi)
+library(tidyr)
+library(lubridate)
+library(stats)
+library(htmltools)
+library(Hmisc)
+library(xtable)
+library(psych)
+library(corrplot)
+library(RColorBrewer)
+library(gridExtra)
+library(ggfortify)
+```
+
+The main goal of this study was to reduce the dimensions of collected data regarding real estate. The database includes variables describing houses features and all of them are continuous. Moreover, it was decided that the PCA would be the most suitable method for the study purposes. The aim of this method is to obtain principle components which would describe some part of the data variances.
+
+## Exploratory data analysis
+
+The first step in this study was to analyze the data. The database is constructed with 38 variables and their names are uploaded below. 
+
+```{r}
+data = read.csv("realestate.csv")
+print(as.data.frame.list(colnames(data)))
+```
+
+Each of the variable is numeric and is describing different house features. So, the first thing that was checked was the number of missing values. It appeared that there is 348 of them out of 1460. Thus, it was decided to omit those values because it was assumed that the methodology would work better without them.
+
+```{r}
+sum(is.na(data))
+nrow(data)
+data = na.omit(data)
+```
+
+### Data description
+
+It is visible on the table below that collected dataset includes many kind of variables. Using it in different types of analysis might be in some way inefficient. Mainly, due to the fact that in these big databases the same information might be provided with multiple variables and this means that using them is not optimal from computational and simplicity reasons. Thus, this is the purpose to reduce the dimension of the data. 
+
+```{r, message=FALSE}
+describe(data)
+```
+
+### Correlation
+
+The next step was to verify the correlation between variables. It is a crucial part because it gives some preview about relationships between the house features. Based on the correlation analysis is possible to check whether methods of reducing dimensions will be suitable for this dataset. 
+
+```{r, message=FALSE}
+data_corr = cor(data)
+corrplot(data_corr,method=c("square"), type="lower", order="hclust",tl.pos = "n",
+         col=brewer.pal(n=8, name="PRGn"))
+```
+
+
+Based on the correlation matrix it might be visible that there are numerous variables which are strongly correlated with each other. We can observe some huge blocks with strong filling. This observation leads to conclusion that some methods of dimension reduction could be used on this database. 
+
+### Data standardization 
+
+The last step in the data manipulation was the standardization. The reason for that was the different scales of the variables. 
+
+```{r, message=FALSE}
+data_z = as.data.frame(lapply(data[2:38],scale))
+```
+
+## Dimension Reduction
+
+After initial data analysis it is time for reducing the dimension of the data. However, at the beginning it should be decided which method should be used. By taking the purpose of the study into account it was determined that PCA method should be picked up. First of all this method is a really good tool to handle the relationships and variances between all the variables by creating principal components. Moreover, it provides a really good insights into data and helps with understanding it. Although, PCA has many advantages it also has some drawbacks. Basically, it does not perform well with the data containing outliers and characterized with non-linear relationships.
+
+
+### PCA
+
+As it was said in the previous section the PCA method has been chosen to reduce the dimensions. Below there are presented the results of this method and based on them number of principal components was established. 
+
+```{r, message=FALSE}
+data_PCA = prcomp(data, center = TRUE, scale. = TRUE)
+summary(data_PCA)
+```
+```{r, message=FALSE}
+fviz_screeplot(data_PCA, addlabels = TRUE, ncp = 15, barfill = "purple", barcolor = "white")
+```
+
+As it is visible on the table and plot it is difficult to choose optimal number of the principle components. The principle components chosen by the elbow method might not provide enough information because there will be less then 50% of variance explained. Thus, it was decided that the optimal number of components should be chosen arbitrary based on the variance explained willing to be obtained. In this study it was determined that it should be 90%, so finally 23 components has been chosen. 
+However, to verify the decision, in the table below, the  eigen values have been calculated. These results pointed that optimal number of components should be 13, because the eigenvalue of the rest of the components was lower than one. Thus, finally it was decided to go with 13 components.
+
+```{r, message=FALSE}
+ev_table = get_eigenvalue(data_PCA)
+ev_table[1:15,]
+```
+
+### Visualisation
+
+In the next section some visualizations were presented. The purpose of that was to give some insights about the results. In this section the focus was only on the first two components because simply they provide the most information.
+
+```{r, message=FALSE}
+fviz_pca_var(data_PCA, col.var="steelblue")
+```
+
+Based on this graphs it was possible to obtain some information about relationships between variables. What is quite unusual here is the fact that almost all these variables are placed on the left side of vertical axis. It means that all these variables are positively correlated.
+
+The next graph represents individual observation in two dimensions with colored quality of representation.
+
+```{r, message=FALSE}
+fviz_pca_ind(data_PCA, col.ind="cos2", geom="point", gradient.cols=c("white", "#2E9FDF", "#FC4E07" ))
+```
+
+
+The plots below present the contributions of individual variables to two first principal components.
+
+```{r, message=FALSE}
+var = get_pca_var(data_PCA)
+a = fviz_contrib(data_PCA, "var", axes=1, xtickslab.rt=90) 
+b = fviz_contrib(data_PCA, "var", axes=2, xtickslab.rt=90)
+grid.arrange(a,b,top='Contribution to the first two Principal Components')
+```
+
+## Clustering
+
+The additional step in this analysis was preparing some clustering. Thus, at the beginning it was necessary to calculate Silhuette statistics for couple of clusters. It will provide information about optimal number of clusters. As a default method the k-means has been chosen.
+
+```{r, message=FALSE}
+kmeans_opt = Optimal_Clusters_KMeans(data_z, max_clusters=10, plot_clusters=TRUE, criterion="silhouette")
+```
+
+Based on the plot it was possible to determine optimal number of clusters. It is visible that the highest score was assigned to the two clusters and this was the number used in further analysis.
+Now, lets plot our clusters.
+
+```{r, message=FALSE}
+km3 = eclust(data_z, k=2)
+autoplot(data_PCA, data = km3, colour = "cluster")
+```
+
+## Summary
+
+To conclude, the aim of this study was to reduce the dimensions of the real estate database. The reason for that was to get more information about the data and obtain variables which will be more pleasant to work with. The initial number of variables was 38 and the PCA method allowed us to reduce it down to 13 principle components an they were explaining more than 70% of the variance. At the end some basic clustering on the results was presented. Based on the silhuette statistics two culsters were established and plotted. It is also visible that clustering results on the whole data set are similar to PCA results.s 
+
+## References
+
+http://www.sthda.com/english/articles/31-principal-component-methods-in-r-practical-guide/112-pca-principal-component-analysis-essentials/
+
+https://www.datacamp.com/community/tutorials/pca-analysis-r
+
+https://cran.r-project.org/web/packages/ggfortify/vignettes/plot_pca.html
